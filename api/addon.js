@@ -1,47 +1,41 @@
 const { addonBuilder } = require("stremio-addon-sdk");
-const { loginToWebshare, searchFiles, getFileLink } = require("../lib/helpers");
+const { loginToWebshare, searchFiles, getFileLink, saveSession, getSession } = require("../lib/helpers");
 const { loginSchema } = require("../lib/validation");
 const { checkRateLimit } = require("../lib/rateLimit");
 const logger = require("../lib/logger");
 const fs = require("fs");
 const path = require("path");
 
-// Redis session storage
-const { saveSession, getSession } = require("../lib/helpers");
-
+// OPRAVA: manifest.resources bez "configure", bez defineConfigHandler
 const manifest = {
   id: "cz.webshare.stremio",
-  version: "2.0.0",
+  version: "2.0.1",
   name: "Webshare Stremio Pro",
   description: "Premium přístup k Webshare s přihlášením a produkční ochranou",
-  resources: ["catalog", "stream", "configure"],
+  resources: ["catalog", "stream"], // OPRAVA: pouze platné hodnoty!
   types: ["movie", "series"],
   catalogs: [{
     type: "movie",
     id: "webshare-search",
     name: "Vyhledat na Webshare",
     extra: [{ name: "search", isRequired: true }]
-  }]
+  }],
+  behaviorHints: {
+    configurable: true,
+    configurationRequired: true
+  }
 };
 
 const builder = new addonBuilder(manifest);
 
-// Konfigurační handler
-builder.defineConfigHandler(() => ({
-  config: [
-    { key: "sessionToken", type: "text", title: "Session Token" }
-  ],
-  options: [{
-    label: "Přihlásit se",
-    action: { type: "link", url: "/login" }
-  }]
-}));
+// OPRAVA: Žádné defineConfigHandler!
 
 // Catalog handler
-builder.defineCatalogHandler(async ({ extra, config }) => {
+builder.defineCatalogHandler(async ({ extra, id, type }, req) => {
   try {
     const { search } = extra;
-    const { sessionToken } = config;
+    // OPRAVA: Session token získáváme z query nebo config
+    const sessionToken = (req && req.query && req.query.sessionToken) || (extra && extra.sessionToken);
     if (!search || !sessionToken) return { metas: [] };
     const wst = await getSession(sessionToken);
     if (!wst) return { metas: [] };
@@ -55,10 +49,11 @@ builder.defineCatalogHandler(async ({ extra, config }) => {
 });
 
 // Stream handler
-builder.defineStreamHandler(async ({ id, config }) => {
+builder.defineStreamHandler(async ({ id }, req) => {
   try {
     const [prefix, fileId] = id.split("_");
-    const { sessionToken } = config;
+    // OPRAVA: Session token získáváme z query
+    const sessionToken = req && req.query && req.query.sessionToken;
     if (prefix !== "ws" || !sessionToken) return { streams: [] };
     const wst = await getSession(sessionToken);
     if (!wst) return { streams: [] };
@@ -85,7 +80,7 @@ module.exports = async (req, res) => {
     return res.end(JSON.stringify({ error: "Příliš mnoho požadavků, zkuste to později" }));
   }
 
-  if (req.url === "/login") {
+  if (req.url.startsWith("/login")) {
     if (req.method === "GET") {
       res.writeHead(200, { "Content-Type": "text/html" });
       res.end(fs.readFileSync(path.join(__dirname, "../public/login.html"), "utf8"));
@@ -110,8 +105,14 @@ module.exports = async (req, res) => {
           await saveSession(sessionToken, wst);
 
           logger.info("User logged in", { username });
-          res.writeHead(200, { "Content-Type": "application/json" });
-          return res.end(JSON.stringify({ sessionToken }));
+          res.writeHead(200, { "Content-Type": "text/html" });
+          // OPRAVA: Zobrazíme session token a návod jak jej použít v URL
+          res.end(`
+            <h2>Přihlášení úspěšné!</h2>
+            <p>Zkopírujte si tento session token a použijte ho v URL addonu ve Stremiu:</p>
+            <input type="text" value="${sessionToken}" readonly style="width:300px;">
+            <p>Příklad URL: <code>https://tvuj-addon.vercel.app/manifest.json?sessionToken=${sessionToken}</code></p>
+          `);
         } catch (error) {
           logger.error("Login error", { error: error.message });
           res.writeHead(401, { "Content-Type": "application/json" });
