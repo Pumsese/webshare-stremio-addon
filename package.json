@@ -1,16 +1,9 @@
 {
-  "name": "webshare-stremio",
-  "version": "2.0.0",
-  "scripts": {
-    "start": "node api/addon.js"
-  },
+  "name": "webshare-stremio-addon",
+  "version": "1.0.0",
+  "type": "module",
   "dependencies": {
-    "stremio-addon-sdk": "^1.6.10",
-    "node-fetch": "^2.6.7",
-    "xml2js": "^0.6.2",
-    "ioredis": "^5.3.2",
-    "joi": "^17.9.2",
-    "rate-limiter-flexible": "^2.4.1",
-    "winston": "^3.8.2"
+    "@upstash/redis": "^1.24.0",
+    "stremio-addon-sdk": "^1.6.10"
   }
 }
