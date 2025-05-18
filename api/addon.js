@@ -6,13 +6,13 @@ const logger = require("../lib/logger");
 const fs = require("fs");
 const path = require("path");
 
-// OPRAVA: manifest.resources bez "configure", bez defineConfigHandler
+// Opravený manifest – pouze platné resources
 const manifest = {
   id: "cz.webshare.stremio",
-  version: "2.0.1",
+  version: "2.0.2",
   name: "Webshare Stremio Pro",
   description: "Premium přístup k Webshare s přihlášením a produkční ochranou",
-  resources: ["catalog", "stream"], // OPRAVA: pouze platné hodnoty!
+  resources: ["catalog", "stream"],
   types: ["movie", "series"],
   catalogs: [{
     type: "movie",
@@ -28,13 +28,11 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// OPRAVA: Žádné defineConfigHandler!
-
 // Catalog handler
-builder.defineCatalogHandler(async ({ extra, id, type }, req) => {
+builder.defineCatalogHandler(async ({ extra }, req) => {
   try {
     const { search } = extra;
-    // OPRAVA: Session token získáváme z query nebo config
+    // Session token získáváme z query parametru
     const sessionToken = (req && req.query && req.query.sessionToken) || (extra && extra.sessionToken);
     if (!search || !sessionToken) return { metas: [] };
     const wst = await getSession(sessionToken);
@@ -52,7 +50,6 @@ builder.defineCatalogHandler(async ({ extra, id, type }, req) => {
 builder.defineStreamHandler(async ({ id }, req) => {
   try {
     const [prefix, fileId] = id.split("_");
-    // OPRAVA: Session token získáváme z query
     const sessionToken = req && req.query && req.query.sessionToken;
     if (prefix !== "ws" || !sessionToken) return { streams: [] };
     const wst = await getSession(sessionToken);
@@ -106,7 +103,7 @@ module.exports = async (req, res) => {
 
           logger.info("User logged in", { username });
           res.writeHead(200, { "Content-Type": "text/html" });
-          // OPRAVA: Zobrazíme session token a návod jak jej použít v URL
+          // Zobrazíme session token a návod jak jej použít v URL
           res.end(`
             <h2>Přihlášení úspěšné!</h2>
             <p>Zkopírujte si tento session token a použijte ho v URL addonu ve Stremiu:</p>
