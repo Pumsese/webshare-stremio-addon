@@ -1,23 +1,21 @@
-const { addonBuilder } = require("stremio-addon-sdk");
-const { loginToWebshare, searchFiles, getFileLink, saveSession, getSession } = require("../lib/helpers");
-const { loginSchema } = require("../lib/validation");
-const { checkRateLimit } = require("../lib/rateLimit");
-const logger = require("../lib/logger");
-const fs = require("fs");
-const path = require("path");
+import { addonBuilder } from "stremio-addon-sdk";
+import { loginToWebshare, searchFiles, getFileLink, saveSession, getSession } from "../lib/helpers.js";
+import fs from "fs";
+import path from "path";
+import { fileURLToPath } from "url";
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
-// Opravený manifest – pouze platné resources
 const manifest = {
   id: "cz.webshare.stremio",
-  version: "2.0.2",
-  name: "Webshare Stremio Pro",
-  description: "Premium přístup k Webshare s přihlášením a produkční ochranou",
+  version: "1.0.0",
+  name: "Webshare Stremio",
+  description: "Streamování z Webshare s přihlášením (Upstash Redis)",
   resources: ["catalog", "stream"],
   types: ["movie", "series"],
   catalogs: [{
     type: "movie",
     id: "webshare-search",
-    name: "Vyhledat na Webshare",
+    name: "Webshare vyhledávání",
     extra: [{ name: "search", isRequired: true }]
   }],
   behaviorHints: {
@@ -28,54 +26,30 @@ const manifest = {
 
 const builder = new addonBuilder(manifest);
 
-// Catalog handler
 builder.defineCatalogHandler(async ({ extra }, req) => {
-  try {
-    const { search } = extra;
-    // Session token získáváme z query parametru
-    const sessionToken = (req && req.query && req.query.sessionToken) || (extra && extra.sessionToken);
-    if (!search || !sessionToken) return { metas: [] };
-    const wst = await getSession(sessionToken);
-    if (!wst) return { metas: [] };
-
-    const files = await searchFiles(search, wst);
-    return { metas: files.map(mapToMeta) };
-  } catch (error) {
-    logger.error("Catalog error", { error: error.message });
-    return { metas: [] };
-  }
+  const { search } = extra;
+  const sessionToken = (req && req.query && req.query.sessionToken) || (extra && extra.sessionToken);
+  if (!search || !sessionToken) return { metas: [] };
+  const wst = await getSession(sessionToken);
+  if (!wst) return { metas: [] };
+  const files = await searchFiles(search, wst);
+  return { metas: files.map(mapToMeta) };
 });
 
-// Stream handler
 builder.defineStreamHandler(async ({ id }, req) => {
-  try {
-    const [prefix, fileId] = id.split("_");
-    const sessionToken = req && req.query && req.query.sessionToken;
-    if (prefix !== "ws" || !sessionToken) return { streams: [] };
-    const wst = await getSession(sessionToken);
-    if (!wst) return { streams: [] };
-
-    const link = await getFileLink(fileId, wst);
-    return link ? { streams: [createStream(link)] } : { streams: [] };
-  } catch (error) {
-    logger.error("Stream error", { error: error.message });
-    return { streams: [] };
-  }
+  const [prefix, fileId] = id.split("_");
+  const sessionToken = req && req.query && req.query.sessionToken;
+  if (prefix !== "ws" || !sessionToken) return { streams: [] };
+  const wst = await getSession(sessionToken);
+  if (!wst) return { streams: [] };
+  const link = await getFileLink(fileId, wst);
+  return link ? { streams: [createStream(link)] } : { streams: [] };
 });
 
-// HTTP handler
-module.exports = async (req, res) => {
-  // CORS
+export default async (req, res) => {
   res.setHeader("Access-Control-Allow-Origin", "*");
   res.setHeader("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
   if (req.method === "OPTIONS") return res.end();
-
-  // Rate limiting
-  const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-  if (!(await checkRateLimit(ip))) {
-    res.writeHead(429, { "Content-Type": "application/json" });
-    return res.end(JSON.stringify({ error: "Příliš mnoho požadavků, zkuste to později" }));
-  }
 
   if (req.url.startsWith("/login")) {
     if (req.method === "GET") {
@@ -89,21 +63,10 @@ module.exports = async (req, res) => {
           const params = new URLSearchParams(body);
           const username = params.get("username");
           const password = params.get("password");
-
-          // Validace vstupu
-          const { error } = loginSchema.validate({ username, password });
-          if (error) {
-            res.writeHead(400, { "Content-Type": "application/json" });
-            return res.end(JSON.stringify({ error: error.details[0].message }));
-          }
-
           const wst = await loginToWebshare(username, password);
-          const sessionToken = require("crypto").randomBytes(16).toString("hex");
+          const sessionToken = Math.random().toString(36).substr(2, 15);
           await saveSession(sessionToken, wst);
-
-          logger.info("User logged in", { username });
           res.writeHead(200, { "Content-Type": "text/html" });
-          // Zobrazíme session token a návod jak jej použít v URL
           res.end(`
             <h2>Přihlášení úspěšné!</h2>
             <p>Zkopírujte si tento session token a použijte ho v URL addonu ve Stremiu:</p>
@@ -111,14 +74,12 @@ module.exports = async (req, res) => {
             <p>Příklad URL: <code>https://tvuj-addon.vercel.app/manifest.json?sessionToken=${sessionToken}</code></p>
           `);
         } catch (error) {
-          logger.error("Login error", { error: error.message });
-          res.writeHead(401, { "Content-Type": "application/json" });
-          return res.end(JSON.stringify({ error: error.message }));
+          res.writeHead(401, { "Content-Type": "text/html" });
+          res.end(`<p style="color:red;">Chyba: ${error.message}</p>`);
         }
       });
     }
   } else {
-    // Stremio API
     builder.getInterface()(req, res);
   }
 };
