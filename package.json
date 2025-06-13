@@ -13,7 +13,7 @@
     "js-sha1": "^0.6.0",
     "node-fetch": "^3.3.2",
     "xml2js": "^0.6.2",
-    "@node-rs/crypt": "^1.6.2"
+    "md5-crypt": "^1.3.0"
 
 
   },
