@@ -13,7 +13,8 @@
     "js-sha1": "^0.6.0",
     "node-fetch": "^3.3.2",
     "xml2js": "^0.6.2",
-    "unix-md5-crypt": "^1.1.4"
+    "apache-md5": "^1.0.6"
+
 
   },
   "engines": {
