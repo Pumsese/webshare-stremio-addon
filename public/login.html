@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <title>Webshare Login</title>
+  <style>
+    body { font-family: Arial; max-width: 400px; margin: 2rem auto; }
+    input { width: 100%; margin: 0.5rem 0; padding: 0.5rem; }
+    button { background: #0066cc; color: white; border: none; padding: 0.5rem 1rem; }
+    .or { text-align: center; margin: 1rem 0; color: #888; }
+  </style>
+</head>
+<body>
+  <h2>Přihlášení k Webshare</h2>
+  <form method="POST">
+    <label>Uživatelské jméno nebo e-mail:</label>
+    <input type="text" name="username" placeholder="Uživatelské jméno nebo e-mail">
+    <label>Heslo:</label>
+    <input type="password" name="password" placeholder="Heslo">
+    <div class="or">— nebo —</div>
+    <label>Webshare token:</label>
+    <input type="text" name="token" placeholder="Webshare token">
+    <button type="submit">Přihlásit</button>
+  </form>
+  <p style="font-size:0.95em;color:#888;margin-top:1.5em;">
+    Pokud zadáte token, uživatelské jméno a heslo se ignorují.<br>
+    Token najdete v nastavení svého účtu na webu <a href="https://webshare.cz/" target="_blank">webshare.cz</a>.
+  </p>
+</body>
+</html>
